@@ -1,0 +1,13 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_size = 4
+
+[*.{csproj,sln}]
+charset = utf-8-bom

@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28729.10
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Threshold", "src\Threshold\Threshold.csproj", "{49FFEB5E-1862-495F-8AE9-05580B6A49DC}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Threshold.Tests", "src\Threshold.Tests\Threshold.Tests.csproj", "{5DB437CA-5E44-488F-8136-8AD568D7BB36}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EBCE5DC1-6774-499C-80BF-E07B9650B207}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{49FFEB5E-1862-495F-8AE9-05580B6A49DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49FFEB5E-1862-495F-8AE9-05580B6A49DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49FFEB5E-1862-495F-8AE9-05580B6A49DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49FFEB5E-1862-495F-8AE9-05580B6A49DC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5DB437CA-5E44-488F-8136-8AD568D7BB36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5DB437CA-5E44-488F-8136-8AD568D7BB36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5DB437CA-5E44-488F-8136-8AD568D7BB36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5DB437CA-5E44-488F-8136-8AD568D7BB36}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {079FAE7F-AE7F-4AC7-A638-8E92D11F1214}
+	EndGlobalSection
+EndGlobal
