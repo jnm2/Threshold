@@ -2,10 +2,11 @@ using System;
 using System.IO;
 using QRCoder;
 using SkiaSharp;
+using Threshold.RichText;
 
 namespace Threshold
 {
-    public static class ThresholdDocumentGenerator
+    public sealed class ThresholdDocumentGenerator : IDisposable
     {
         private const float PageWidth = 8.5f * 72;
         private const float PageHeight = 11f * 72;
@@ -14,48 +15,167 @@ namespace Threshold
         private const float PageTopMargin = 0.5f * 72;
         private const float DataPageMargin = 12;
 
+        private readonly SKDocument document;
+        private readonly SKTypeface typeface;
+        private readonly SKTypeface boldTypeface;
+        private readonly SKTypeface italicTypeface;
+
+        private readonly string title;
+
+        private ThresholdDocumentGenerator(SKDocument document, string title)
+        {
+            this.document = document ?? throw new ArgumentNullException(nameof(document));
+            this.title = title;
+
+            const string fontFamily = "Cambria";
+            typeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+            boldTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+            italicTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Italic);
+        }
+
+        public void Dispose()
+        {
+            typeface.Dispose();
+            boldTypeface.Dispose();
+            italicTypeface.Dispose();
+        }
+
         public static void GeneratePdf(Stream stream, string title, ReadOnlySpan<byte> encryptedData)
         {
-            using (var typeface = SKTypeface.FromFamilyName("Cambria", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright))
-            using (var boldTypeface = SKTypeface.FromFamilyName("Cambria", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright))
             using (var document = SKDocument.CreatePdf(stream))
+            using (var generator = new ThresholdDocumentGenerator(document, title))
             {
-                using (var canvas = document.BeginPage(PageWidth, PageHeight))
-                {
-                    DrawPageTop(canvas, title, subtitle: null, out var lineWriter, typeface, boldTypeface);
+                generator.DrawIntroductionPage(singleDataPage: CalculateRequiredPages(encryptedData) == 1);
 
-                    DrawBlanksForHandwrittenKeyPart(canvas, ref lineWriter, typeface);
-                }
-
-                document.EndPage();
-
-                DrawDataPages(document, title, encryptedData, typeface, boldTypeface);
+                generator.DrawDataPages(encryptedData);
             }
         }
 
-        private static void DrawPageTop(SKCanvas canvas, string title, string subtitle, out CanvasTextLineWriter lineWriter, SKTypeface typeface, SKTypeface boldTypeface)
+        private void DrawPageTop(CanvasRichTextWriter writer, string subtitle = null)
         {
-            using (var paint = new SKPaint { TextAlign = SKTextAlign.Center })
+            using (writer.Align(TextAlign.Center))
             {
-                lineWriter = new CanvasTextLineWriter(canvas);
-                lineWriter.Move(PageTopMargin);
-
-                paint.Typeface = boldTypeface;
-                paint.TextSize = TitleTextSize;
-                lineWriter.DrawText(title, PageWidth / 2, paint);
-                lineWriter.Move(8);
-
-                if (!string.IsNullOrEmpty(subtitle))
+                using (writer.Typeface(boldTypeface))
+                using (writer.TextSize(TitleTextSize))
                 {
-                    paint.Typeface = typeface;
-                    paint.TextSize = SubtitleTextSize;
-                    lineWriter.DrawText(subtitle, PageWidth / 2, paint);
-                    lineWriter.Move(8);
+                    writer.WriteLine(title);
+                }
+
+                if (string.IsNullOrEmpty(subtitle)) return;
+
+                using (writer.Typeface(typeface))
+                using (writer.TextSize(SubtitleTextSize))
+                {
+                    writer.WriteLine(subtitle);
                 }
             }
         }
 
-        private static void DrawBlanksForHandwrittenKeyPart(SKCanvas canvas, ref CanvasTextLineWriter lineWriter, SKTypeface typeface)
+        private void DrawIntroductionPage(bool singleDataPage)
+        {
+            const float introPageMargin = PageTopMargin;
+            var pageBounds = new SKRect(introPageMargin, introPageMargin, PageWidth - introPageMargin, PageHeight - introPageMargin);
+
+            using (var canvas = document.BeginPage(PageWidth, PageHeight))
+            using (var writer = new CanvasRichTextWriter(canvas, pageBounds))
+            {
+                DrawPageTop(writer);
+
+                using (writer.Align(TextAlign.Justify))
+                using (writer.TextSize(12))
+                {
+                    writer.WriteLine();
+
+                    using (writer.Typeface(italicTypeface))
+                        writer.WriteLine("Do not throw away. The contents may contain valuable information.");
+
+                    using (writer.Typeface(typeface))
+                    {
+                        writer.Write(
+                            "This backup is encrypted. The key has been split into multiple physical locations. " +
+                            "In order to decrypt, a certain number of the parts of the key must be brought together. " +
+                            "Software has been created for this purpose at ");
+
+                        writer.WriteLink("https://github.com/jnm2/Threshold");
+
+                        writer.WriteLine(
+                            ". Start there if you need to restore the backup. The software will walk you through " +
+                            "the use of each digital item in the backup once it is successfully decrypted.");
+
+                        writer.WriteLine(
+                            "If you are unable to run the software by accessing that URL, it is still possible to " +
+                            "decrypt this backup if you have the right tools at your disposal. C# source code is included " +
+                            "at the end of this document which could be compiled to obtain the software available at the " +
+                            "URL above or could at least be used as a reference. The source code is preceded by a " +
+                            "specification of the encoding and decoding process.");
+
+                        writer.WriteLine();
+
+                        using (writer.Typeface(boldTypeface))
+                            writer.Write("Do not photograph or scan");
+
+                        writer.Write(
+                            " or otherwise copy any part of the secret key. Take measures to prevent this, even while " +
+                            "photographing or scanning other pages as part of the recovery process. Keep the secret key parts " +
+                            "physically secure until you can type them straight into the decryption software. ");
+
+                        using (writer.Typeface(boldTypeface))
+                            writer.Write("Do not type");
+
+                        writer.WriteLine(
+                            " any part of the secret key into a computer, unless:");
+
+                        using (writer.ListItem())
+                            writer.Write("The computer is permanently air-gapped (physically disabled from communicating on a network)");
+
+                        using (writer.ListItem())
+                            writer.Write("And, the computer has no internal hard drive (must be running from a live CD or USB)");
+
+                        writer.WriteLine(
+                            "Once the backup has been decrypted successfully, either destroy all parts of the secret key " +
+                            "beyond recovery or separate them into physically distant storage locations.");
+
+                        writer.WriteLine();
+
+                        using (writer.TextSize(16))
+                            writer.WriteLine("Table of Contents");
+
+                        using (writer.ListItem("0."))
+                        {
+                            writer.Write("Introduction and secret key part ");
+
+                            using (writer.TextSize(9))
+                                writer.Write("(this page)");
+                        }
+
+                        using (writer.ListItem("1."))
+                        {
+                            writer.Write("Data ");
+                            writer.Write(singleDataPage ? "page" : "pages");
+                            writer.Write(" designed for scanning");
+                        }
+
+                        using (writer.ListItem("2."))
+                            writer.Write("End-to-end specification");
+
+                        using (writer.ListItem("3."))
+                            writer.Write("Source code");
+
+                        writer.WriteLine();
+
+                        writer.WriteLine("The remainder of this page is a secret part of the encryption key. Do not photograph or scan this page.");
+
+                        writer.WriteLine("Write one of the secret key parts (as directed by the software) directly on the paper in pen:");
+                    }
+                }
+
+                DrawBlanksForHandwrittenKeyPart(canvas, pageBounds.Bottom - 28 * 4, typeface);
+            }
+
+            document.EndPage();
+        }
+
+        private static void DrawBlanksForHandwrittenKeyPart(SKCanvas canvas, float top, SKTypeface typeface)
         {
             using (var paint = new SKPaint())
             {
@@ -64,7 +184,7 @@ namespace Threshold
 
                 const float underlineXWidth = 18;
                 const float underlineSectionWidth = 2 * 72;
-                const float underlineThickness = 0.75f;
+                const float underlineThicknessFraction = 0.5f;
 
                 const string xLabel = "X:";
                 const string yLabel = "Y:";
@@ -88,75 +208,96 @@ namespace Threshold
                     + underlineSectionWidth;
 
                 paint.TextAlign = SKTextAlign.Left;
-                paint.StrokeWidth = underlineThickness;
 
                 var labelLeft = (PageWidth - totalWidth) / 2;
                 var underlineStart = labelLeft + labelWidth + spaceWidth;
 
-                lineWriter.DrawText(xLabel, labelLeft, paint);
+                var baseline = top + paint.TextSize;
+                canvas.DrawText(xLabel, labelLeft, baseline, paint);
 
-                var y = lineWriter.CurrentBaseline + underlineThickness / 2;
-                canvas.DrawLine(underlineStart, y, underlineStart + underlineXWidth, y, paint);
+                var underlineTop = baseline + paint.FontMetrics.UnderlinePosition.Value;
+                canvas.DrawRect(
+                    underlineStart,
+                    underlineTop,
+                    underlineXWidth,
+                    paint.FontMetrics.UnderlineThickness.Value * underlineThicknessFraction,
+                    paint);
 
-                lineWriter.Move(28);
-                lineWriter.DrawText(yLabel, labelLeft, paint, move: false);
+                baseline += 28;
+                canvas.DrawText(yLabel, labelLeft, baseline, paint);
 
                 for (var line = 0; line < 3; line++)
                 {
-                    y = lineWriter.CurrentBaseline + underlineThickness / 2;
+                    underlineTop = baseline + paint.FontMetrics.UnderlinePosition.Value;
 
                     var x = underlineStart;
-                    canvas.DrawLine(x, y, x + underlineSectionWidth, y, paint);
 
-                    for (var i = 0; i < 2; i++)
+                    for (var i = 0; ; i++)
                     {
+                        canvas.DrawRect(
+                            x,
+                            underlineTop,
+                            underlineSectionWidth,
+                            paint.FontMetrics.UnderlineThickness.Value * underlineThicknessFraction,
+                            paint);
+
+                        if (i >= 2) break;
+
                         x += underlineSectionWidth + spaceWidth;
-                        lineWriter.DrawText(dash, x, paint, move: false);
+                        canvas.DrawText(dash, x, baseline, paint);
 
                         x += dashWidth + spaceWidth;
-                        canvas.DrawLine(x, y, x + underlineSectionWidth, y, paint);
                     }
 
-                    lineWriter.Move(28);
+                    baseline += 28;
                 }
             }
         }
 
-        private static void DrawDataPages(SKDocument document, string title, ReadOnlySpan<byte> encryptedData, SKTypeface typeface, SKTypeface boldTypeface)
+        private const int MaxBytesPerQRCode = 2953; // Assuming ECC level L
+        private const int HeaderBytesPerQRCode = 2;
+        private const int MaxEncryptedDataBytesPerQRCode = MaxBytesPerQRCode - HeaderBytesPerQRCode;
+
+        private void DrawDataPages(ReadOnlySpan<byte> encryptedData)
         {
-            const int maxBytesPerQRCode = 2953; // Assuming ECC level L
-            const int headerBytesPerQRCode = 2;
-            const int maxEncryptedDataBytesPerQRCode = maxBytesPerQRCode - headerBytesPerQRCode;
             const byte headerVersion = 1;
 
-            var requiredPages = ((encryptedData.Length - 1) / maxEncryptedDataBytesPerQRCode) + 1;
+            var requiredPages = CalculateRequiredPages(encryptedData);
 
             var encryptedDataBytesPerPage = ((encryptedData.Length - 1) / requiredPages) + 1;
+
+            var pageBounds = new SKRect(DataPageMargin, PageTopMargin, PageWidth - DataPageMargin, PageHeight - DataPageMargin);
 
             for (var pageNumber = 1; pageNumber <= requiredPages; pageNumber++)
             {
                 using (var canvas = document.BeginPage(PageWidth, PageHeight))
+                using (var writer = new CanvasRichTextWriter(canvas, pageBounds))
                 {
-                    DrawPageTop(canvas, title, subtitle: $"Data page {pageNumber} of {requiredPages}", out var lineWriter, typeface, boldTypeface);
+                    DrawPageTop(writer, subtitle: $"Data page {pageNumber} of {requiredPages}");
 
                     var encryptedBytesToTake = Math.Min(encryptedData.Length, encryptedDataBytesPerPage);
 
-                    var buffer = new byte[headerBytesPerQRCode + encryptedBytesToTake];
+                    var buffer = new byte[HeaderBytesPerQRCode + encryptedBytesToTake];
                     buffer[0] = headerVersion;
                     buffer[1] = (byte)(requiredPages << 4 | pageNumber);
-                    encryptedData.Slice(0, encryptedBytesToTake).CopyTo(buffer.AsSpan().Slice(headerBytesPerQRCode));
+                    encryptedData.Slice(0, encryptedBytesToTake).CopyTo(buffer.AsSpan().Slice(HeaderBytesPerQRCode));
 
                     encryptedData = encryptedData.Slice(encryptedBytesToTake);
 
                     DrawQRCode(
                         canvas,
-                        new SKRect(DataPageMargin, lineWriter.CurrentY, PageWidth - DataPageMargin, PageHeight - DataPageMargin),
+                        new SKRect(pageBounds.Left, writer.Baseline, pageBounds.Right, pageBounds.Bottom),
                         buffer,
                         QRCodeGenerator.ECCLevel.L);
                 }
             }
 
             document.EndPage();
+        }
+
+        private static int CalculateRequiredPages(ReadOnlySpan<byte> encryptedData)
+        {
+            return ((encryptedData.Length - 1) / MaxEncryptedDataBytesPerQRCode) + 1;
         }
 
         private static void DrawQRCode(SKCanvas canvas, SKRect rect, byte[] data, QRCodeGenerator.ECCLevel eccLevel)
