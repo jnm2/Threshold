@@ -18,6 +18,8 @@ namespace Threshold
                 ThresholdBackup.Utf8NoBom.GetBytes("[Warning! You might not be the same person who restores the items in this backup. Replace this text with instructions that are fully understandable in case of emergency.]"))
         };
 
+        private bool printedSinceLastChange;
+
         public void Run()
         {
             EditItem();
@@ -54,7 +56,8 @@ namespace Threshold
                         break;
 
                     case 'q':
-                        if (!items.Any() || ConsoleUtils.ChooseYesNo("Are you sure you want to discard the current backup without printing?"))
+                        var shouldPrompt = !printedSinceLastChange && items.Any();
+                        if (!shouldPrompt || ConsoleUtils.ChooseYesNo("Are you sure you want to discard the current backup without printing?"))
                         {
                             return;
                         }
@@ -127,6 +130,7 @@ namespace Threshold
             var description = ConsoleUtils.GetRequiredDescription();
 
             items.Add(new BackupItem(description, contentType, fileName, content));
+            printedSinceLastChange = false;
         }
 
         private void FinishEditingItem(int index, string newFileName, ReadOnlyMemory<byte> newContent)
@@ -139,6 +143,7 @@ namespace Threshold
                 : item.Description;
 
             items[index] = new BackupItem(description, item.ContentType, newFileName, newContent);
+            printedSinceLastChange = false;
         }
 
         private void ListItems()
@@ -204,7 +209,10 @@ namespace Threshold
         private void DiscardItem()
         {
             if (TryChooseItem("discard", out var index))
+            {
                 items.RemoveAt(index);
+                printedSinceLastChange = false;
+            }
         }
 
         private bool TryChooseItem(string verb, out int index)
@@ -284,6 +292,8 @@ namespace Threshold
                 Console.WriteLine();
                 Console.WriteLine(FormatPart(share));
             }
+
+            printedSinceLastChange = true;
         }
 
         private static FileStream SaveAs()
