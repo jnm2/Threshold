@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using QRCoder;
 using SkiaSharp;
 using Threshold.RichText;
@@ -27,7 +28,14 @@ namespace Threshold
             this.document = document ?? throw new ArgumentNullException(nameof(document));
             this.title = title;
 
-            const string fontFamily = "Cambria";
+            var families = SKFontManager.Default.FontFamilies;
+
+            var fontFamily = new[] { "Cambria", "Libertine", "Serif" }
+                .Select(name => SKFontManager.Default.FontFamilies
+                    .FirstOrDefault(family => family.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefault(family => family != null)
+                ?? families.First();
+
             typeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
             boldTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
             italicTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Italic);
