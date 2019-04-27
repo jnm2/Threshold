@@ -127,45 +127,49 @@ namespace Threshold
 
         private static void DisplayChoice(string message, MatchCollection options)
         {
-            var normal = (foreground: Console.ForegroundColor, background: Console.BackgroundColor);
-
-            var hotForeground = normal.foreground switch
-            {
-                ConsoleColor.Gray => ConsoleColor.White
-            };
-            var bracketForeground = normal.foreground switch
-            {
-                ConsoleColor.Gray => ConsoleColor.DarkGray
-            };
-            var hotBackground = normal.background switch
-            {
-                ConsoleColor.Black => ConsoleColor.DarkBlue
-            };
-
             var nextIndex = 0;
             foreach (Match option in options)
             {
                 Console.Write(message.Substring(nextIndex, option.Index - nextIndex));
 
-                Console.BackgroundColor = hotBackground;
-                try
+                var backgroundIsBlack = Console.BackgroundColor == ConsoleColor.Black;
+
+                using (backgroundIsBlack ? WithBackgroundColor(ConsoleColor.Blue) : null)
                 {
-                    Console.ForegroundColor = bracketForeground;
-                    Console.Write('[');
-                    Console.ForegroundColor = hotForeground;
-                    Console.Write(message[option.Groups["char"].Index]);
-                    Console.ForegroundColor = bracketForeground;
-                    Console.Write(']');
-                }
-                finally
-                {
-                    (Console.ForegroundColor, Console.BackgroundColor) = normal;
+                    using (WithForegroundColor(ConsoleColor.DarkGray))
+                    {
+                        Console.Write('[');
+                    }
+
+                    using (backgroundIsBlack ? WithForegroundColor(ConsoleColor.White) : null)
+                    {
+                        Console.Write(message[option.Groups["char"].Index]);
+                    }
+
+                    using (WithForegroundColor(ConsoleColor.DarkGray))
+                    {
+                        Console.Write(']');
+                    }
                 }
 
                 nextIndex = option.Groups["rest"].Index;
             }
 
             Console.Write(message.Substring(nextIndex).TrimEnd() + ' ');
+        }
+
+        public static IDisposable WithForegroundColor(ConsoleColor foregroundColor)
+        {
+            var initial = Console.ForegroundColor;
+            Console.ForegroundColor = foregroundColor;
+            return On.Dispose(() => Console.ForegroundColor = initial);
+        }
+
+        public static IDisposable WithBackgroundColor(ConsoleColor backgroundColor)
+        {
+            var initial = Console.BackgroundColor;
+            Console.BackgroundColor = backgroundColor;
+            return On.Dispose(() => Console.BackgroundColor = initial);
         }
 
         public static void EditMultilineMessage(StringBuilder message)
