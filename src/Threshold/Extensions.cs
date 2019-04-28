@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace Threshold
@@ -23,6 +24,36 @@ namespace Threshold
             if (assembly is null) throw new ArgumentNullException(nameof(assembly));
 
             return assembly.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright;
+        }
+
+        public static T MinBy<T, TKey>(this IEnumerable<T> source, Func<T, TKey> keySelector, IComparer<TKey> comparer = null)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (keySelector is null) throw new ArgumentNullException(nameof(keySelector));
+
+            using (var en = source.GetEnumerator())
+            {
+                if (!en.MoveNext()) throw new InvalidOperationException("Sequence contained no elements.");
+
+                var minValue = en.Current;
+                var minKey = keySelector.Invoke(minValue);
+
+                if (comparer is null) comparer = Comparer<TKey>.Default;
+
+                while (en.MoveNext())
+                {
+                    var current = en.Current;
+                    var currentKey = keySelector.Invoke(current);
+
+                    if (comparer.Compare(minKey, currentKey) > 0)
+                    {
+                        minValue = current;
+                        minKey = currentKey;
+                    }
+                }
+
+                return minValue;
+            }
         }
     }
 }

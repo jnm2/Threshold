@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using QRCoder;
@@ -17,9 +19,9 @@ namespace Threshold
         private const float DataPageMargin = 12;
 
         private readonly SKDocument document;
-        private readonly SKTypeface typeface;
-        private readonly SKTypeface boldTypeface;
-        private readonly SKTypeface italicTypeface;
+        private SKTypeface typeface;
+        private SKTypeface boldTypeface;
+        private SKTypeface italicTypeface;
 
         private readonly string title;
 
@@ -28,17 +30,75 @@ namespace Threshold
             this.document = document ?? throw new ArgumentNullException(nameof(document));
             this.title = title;
 
-            var families = SKFontManager.Default.FontFamilies;
+            SelectTypefaces();
+        }
 
-            var fontFamily = new[] { "Cambria", "Libertine", "Serif" }
-                .Select(name => SKFontManager.Default.FontFamilies
-                    .FirstOrDefault(family => family.Contains(name, StringComparison.OrdinalIgnoreCase)))
-                .FirstOrDefault(family => family != null)
-                ?? families.First();
+        private void SelectTypefaces()
+        {
+            var providedTypefaces = LoadProvidedTypefaces();
 
-            typeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
-            boldTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
-            italicTypeface = SKTypeface.FromFamilyName(fontFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Italic);
+            var providedFamily = SelectFamily(providedTypefaces.Select(t => t.FamilyName));
+            if (providedFamily != null)
+            {
+                var selectedTypefaces = providedTypefaces.Where(t => t.FamilyName.Equals(providedFamily)).ToList();
+
+                typeface = SelectBestMatch(selectedTypefaces, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+                boldTypeface = SelectBestMatch(selectedTypefaces, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+                italicTypeface = SelectBestMatch(selectedTypefaces, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Italic);
+            }
+            else
+            {
+                var installedFamily = SelectFamily(SKFontManager.Default.FontFamilies);
+
+                typeface = SKTypeface.FromFamilyName(installedFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+                boldTypeface = SKTypeface.FromFamilyName(installedFamily, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+                italicTypeface = SKTypeface.FromFamilyName(installedFamily, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Italic);
+            }
+        }
+
+        private static string SelectFamily(IEnumerable<string> familyNames)
+        {
+            var familyNamePreferences = new[] { "Cambria", "Libertine", "Serif" };
+
+            return
+                familyNamePreferences
+                    .Select(name => familyNames.FirstOrDefault(family => family.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                    .FirstOrDefault(family => family != null)
+                ?? familyNames.FirstOrDefault();
+        }
+
+        private static SKTypeface SelectBestMatch(IEnumerable<SKTypeface> typefaces, SKFontStyleWeight desiredWeight, SKFontStyleWidth desiredWidth, SKFontStyleSlant desiredSlant)
+        {
+            return typefaces.MinBy(t =>
+                Math.Abs(t.FontWeight - (int)desiredWeight) / 100
+                + Math.Abs(t.FontWidth - (int)desiredWidth)
+                + (t.FontSlant == desiredSlant ? 0 : 5));
+        }
+
+        private static ImmutableArray<SKTypeface> LoadProvidedTypefaces()
+        {
+            var binDirectory = Path.GetDirectoryName(typeof(Program).Assembly.Location);
+            var fontsDirectory = Path.Join(binDirectory, "fonts");
+
+            string[] files;
+            try
+            {
+                files = Directory.GetFiles(fontsDirectory);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return ImmutableArray<SKTypeface>.Empty;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<SKTypeface>(files.Length);
+
+            foreach (var file in files)
+            {
+                if (SKTypeface.FromFile(file) is { } typeface)
+                    builder.Add(typeface);
+            }
+
+            return builder.ToImmutable();
         }
 
         public void Dispose()
