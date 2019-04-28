@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.IO;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -15,7 +16,8 @@ namespace Threshold
             byte[] packedDataToEncrypt;
             using (var buffer = new MemoryStream())
             {
-                using (var writer = new BinaryWriter(buffer, Utf8NoBom, leaveOpen: true))
+                using (var compressingStream = new DeflateStream(buffer, CompressionLevel.Optimal, leaveOpen: true))
+                using (var writer = new BinaryWriter(compressingStream, Utf8NoBom))
                 {
                     foreach (var item in backupItems)
                     {
