@@ -3,8 +3,7 @@ namespace Threshold
     public enum BackupContentType
     {
         Text,
-        TextFile,
-        BinaryFile,
+        Binary,
         KeyPair,
         PrivateKey
     }

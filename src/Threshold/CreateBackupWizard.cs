@@ -104,7 +104,13 @@ namespace Threshold
                     AddFreeformMessage();
                     break;
                 case 'b':
+                    Console.WriteLine();
+                    AddFile(text: false);
+                    break;
                 case 't':
+                    Console.WriteLine();
+                    AddFile(text: true);
+                    break;
                 case 'k':
                     throw new NotImplementedException();
                 case 'q':
@@ -123,6 +129,45 @@ namespace Threshold
                 BackupContentType.Text,
                 fileName: null,
                 ThresholdBackup.Utf8NoBom.GetBytes(message.ToString()));
+        }
+
+        private void AddFile(bool text)
+        {
+            Console.Write("Enter the file path: ");
+            var filePath = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            byte[] binary;
+            try
+            {
+                binary = File.ReadAllBytes(filePath);
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+                return;
+            }
+
+            if (text)
+            {
+                // BackupContentType.Text indicates UTF8, so assert that it can be decoded as such.
+                try
+                {
+                    ThresholdBackup.Utf8NoBom.GetString(binary);
+                }
+                catch (ArgumentException)
+                {
+                    Console.WriteLine("Error: the specified file is not a UTF8 text file.");
+                    if (!ConsoleUtils.ChooseYesNo("Do you want to back it up as binary instead?"))
+                        return;
+                }
+            }
+
+            var fileName = Path.GetFileName(filePath);
+
+            Console.WriteLine($"The file name will be saved in the backup as '{fileName}'.");
+
+            FinishAddingItem(text ? BackupContentType.Text : BackupContentType.Binary, fileName, binary);
         }
 
         private void FinishAddingItem(BackupContentType contentType, string fileName, ReadOnlyMemory<byte> content)
@@ -158,15 +203,15 @@ namespace Threshold
                 switch (item.ContentType)
                 {
                     case BackupContentType.Text:
-                        Console.Write(", text");
+                        Console.Write(string.IsNullOrEmpty(item.FileName)
+                            ? ", text"
+                            : ", text file " + item.FileName);
                         break;
 
-                    case BackupContentType.TextFile:
-                        Console.Write(", text file " + item.FileName);
-                        break;
-
-                    case BackupContentType.BinaryFile:
-                        Console.Write(", binary file " + item.FileName);
+                    case BackupContentType.Binary:
+                        Console.Write(string.IsNullOrEmpty(item.FileName)
+                            ? ", binary"
+                            : ", binary file " + item.FileName);
                         break;
 
                     case BackupContentType.KeyPair:
@@ -192,17 +237,16 @@ namespace Threshold
 
             var item = items[index];
 
-            switch (item.ContentType)
+            if (item.ContentType == BackupContentType.Text)
             {
-                case BackupContentType.Text:
-                    var message = new StringBuilder(ThresholdBackup.Utf8NoBom.GetString(item.Content.Span));
-                    Console.WriteLine();
-                    ConsoleUtils.EditMultilineMessage(message);
-                    FinishEditingItem(index, newFileName: null, ThresholdBackup.Utf8NoBom.GetBytes(message.ToString()));
-                    break;
-
-                default:
-                    throw new NotImplementedException();
+                var message = new StringBuilder(ThresholdBackup.Utf8NoBom.GetString(item.Content.Span));
+                Console.WriteLine();
+                ConsoleUtils.EditMultilineMessage(message);
+                FinishEditingItem(index, item.FileName, ThresholdBackup.Utf8NoBom.GetBytes(message.ToString()));
+            }
+            else
+            {
+                FinishEditingItem(index, item.FileName, item.Content);
             }
         }
 
