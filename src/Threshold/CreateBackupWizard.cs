@@ -22,6 +22,8 @@ namespace Threshold
 
         public void Run()
         {
+            Console.WriteLine("It is strongly recommended to make the first backup entry an instructional message.");
+            Console.WriteLine("Adding a freeform text entry now.");
             EditItem();
             Console.WriteLine();
 
