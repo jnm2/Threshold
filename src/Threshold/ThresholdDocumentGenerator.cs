@@ -323,7 +323,7 @@ namespace Threshold
         }
 
         private const int MaxBytesPerQRCode = 2953; // Assuming ECC level L
-        private const int HeaderBytesPerQRCode = 2;
+        private const int HeaderBytesPerQRCode = 3;
         private const int MaxEncryptedDataBytesPerQRCode = MaxBytesPerQRCode - HeaderBytesPerQRCode;
 
         private void DrawDataPages(ReadOnlySpan<byte> encryptedData)
@@ -331,6 +331,8 @@ namespace Threshold
             const byte headerVersion = 1;
 
             var requiredPages = CalculateRequiredPages(encryptedData);
+            if (requiredPages > 256)
+                throw new InvalidOperationException("The current format does not support a number of pages greater than 256.");
 
             var encryptedDataBytesPerPage = ((encryptedData.Length - 1) / requiredPages) + 1;
 
@@ -347,7 +349,8 @@ namespace Threshold
 
                     var buffer = new byte[HeaderBytesPerQRCode + encryptedBytesToTake];
                     buffer[0] = headerVersion;
-                    buffer[1] = (byte)(requiredPages << 4 | pageNumber);
+                    buffer[1] = (byte)(requiredPages - 1);
+                    buffer[2] = (byte)(pageNumber - 1);
                     encryptedData.Slice(0, encryptedBytesToTake).CopyTo(buffer.AsSpan().Slice(HeaderBytesPerQRCode));
 
                     encryptedData = encryptedData.Slice(encryptedBytesToTake);
